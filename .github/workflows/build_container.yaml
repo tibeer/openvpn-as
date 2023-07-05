@@ -1,0 +1,48 @@
+---
+name: Build
+
+"on":
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'Containerfile'
+  schedule:
+    - cron: '0 3 * * 0'  # every sunday at 3am
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    steps:
+      - name: Clone current repository
+        uses: actions/checkout@v3
+      
+      - name: Install qemu dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+    
+      - name: Build using buildah
+        id: build
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: ghcr.io/tibeer/ovpn-as
+          tags: ghcr.io/tibeer/ovpn-as:latest
+          platforms: ${{ matrix.platforms }}
+          containerfiles: |
+            ./Containerfile
+
+      - name: Push to ghcr.io
+        uses: redhat-actions/push-to-registry@v2
+        with:
+            image: ${{ steps.build.outputs.image }}
+            tags: ${{ steps.build.outputs.tags }}
+            registry: ghcr.io
+            username: ${{ github.repository_owner }}
+            password: ${{ github.token }}
